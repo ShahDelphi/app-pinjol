@@ -16,7 +16,7 @@ class _LocationPageState extends State<LocationPage> {
   late GoogleMapController mapController;
   final TextEditingController _searchController = TextEditingController();
   final List<Map<String, dynamic>> _predictions = [];
-  static const String apiKey = 'AIzaSyC5htDnGcDmm84vjz2nK9O-zp4pkLV09s8';
+  static const String apiKey = 'Your_API_Key';
 
   LatLng _currentLatLng = const LatLng(-6.200000, 106.816666); // Default Jakarta
   StreamSubscription<Position>? _positionStream;
