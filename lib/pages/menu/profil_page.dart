@@ -74,10 +74,62 @@ class _ProfilPageState extends State<ProfilPage> {
     }
   }
 
-  Future<void> pickImage() async {
+  // Menampilkan dialog pilihan sumber gambar
+  Future<void> showImageSourceDialog() async {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E2156),
+          title: const Text(
+            'Pilih Sumber Foto',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Colors.blue),
+                title: const Text(
+                  'Kamera',
+                  style: TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Colors.blue),
+                title: const Text(
+                  'Galeri',
+                  style: TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Batal',
+                style: TextStyle(color: Colors.blue),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> pickImage(ImageSource source) async {
     try {
       final pickedFile = await _picker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         imageQuality: 100, // Pastikan kualitas tinggi
       );
 
@@ -329,7 +381,7 @@ class _ProfilPageState extends State<ProfilPage> {
                     // Avatar dengan gesture detector
                     Center(
                       child: GestureDetector(
-                        onTap: pickImage,
+                        onTap: showImageSourceDialog,
                         child: _buildAvatar(),
                       ),
                     ),

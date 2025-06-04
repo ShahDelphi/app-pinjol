@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class LocationPage extends StatefulWidget {
   const LocationPage({super.key});
@@ -16,7 +17,7 @@ class _LocationPageState extends State<LocationPage> {
   late GoogleMapController mapController;
   final TextEditingController _searchController = TextEditingController();
   final List<Map<String, dynamic>> _predictions = [];
-  static const String apiKey = 'Your_API_Key';
+  final String apiKey = dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
 
   LatLng _currentLatLng = const LatLng(-6.200000, 106.816666); // Default Jakarta
   StreamSubscription<Position>? _positionStream;
