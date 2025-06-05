@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'package:geolocator/geolocator.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../../models/form_model.dart';
 
 class ProfilPage extends StatefulWidget {
@@ -17,10 +19,12 @@ class ProfilPage extends StatefulWidget {
 class _ProfilPageState extends State<ProfilPage> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = true;
+  bool _isLoadingLocation = false;
   late FormModel _formData;
   final Map<String, TextEditingController> _controllers = {};
   File? selectedImage;
   final ImagePicker _picker = ImagePicker();
+  final String apiKey = dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
   
   // Key untuk memaksa rebuild CircleAvatar
   Key _avatarKey = UniqueKey();
@@ -72,6 +76,165 @@ class _ProfilPageState extends State<ProfilPage> {
     } catch (e) {
       debugPrint("Error fetching form: $e");
     }
+  }
+
+  // Fungsi untuk mendapatkan alamat dari koordinat menggunakan Reverse Geocoding
+  Future<String> _getAddressFromCoordinates(double lat, double lng) async {
+    try {
+      final url = 'https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lng&key=$apiKey&language=id';
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['results'] != null && data['results'].isNotEmpty) {
+          return data['results'][0]['formatted_address'];
+        }
+      }
+      return 'Alamat tidak ditemukan';
+    } catch (e) {
+      debugPrint('Error getting address: $e');
+      return 'Gagal mendapatkan alamat';
+    }
+  }
+
+  // Fungsi untuk menggunakan lokasi saat ini
+  Future<void> _useCurrentLocation() async {
+    setState(() {
+      _isLoadingLocation = true;
+    });
+
+    try {
+      bool serviceEnabled;
+      LocationPermission permission;
+
+      // Cek service GPS
+      serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Layanan lokasi tidak aktif')),
+          );
+        }
+        return;
+      }
+
+      // Cek permission
+      permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Izin lokasi ditolak')),
+            );
+          }
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Izin lokasi ditolak secara permanen')),
+          );
+        }
+        return;
+      }
+
+      // Dapatkan lokasi sekarang
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      // Konversi koordinat ke alamat
+      String address = await _getAddressFromCoordinates(
+        position.latitude, 
+        position.longitude
+      );
+
+      // Update field alamat
+      setState(() {
+        _controllers['alamat']!.text = address;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Lokasi berhasil digunakan')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error getting current location: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal mendapatkan lokasi: $e')),
+        );
+      }
+    } finally {
+      setState(() {
+        _isLoadingLocation = false;
+      });
+    }
+  }
+
+  // Dialog untuk memilih metode input alamat
+  Future<void> _showAddressInputDialog() async {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E2156),
+          title: const Text(
+            'Input Alamat',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.my_location, color: Colors.blue),
+                title: const Text(
+                  'Gunakan Lokasi Saat Ini',
+                  style: TextStyle(color: Colors.white),
+                ),
+                subtitle: const Text(
+                  'Deteksi otomatis alamat dari GPS',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _useCurrentLocation();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit, color: Colors.blue),
+                title: const Text(
+                  'Input Manual',
+                  style: TextStyle(color: Colors.white),
+                ),
+                subtitle: const Text(
+                  'Ketik alamat secara manual',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  // Focus ke text field alamat
+                  FocusScope.of(context).requestFocus(FocusNode());
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Batal',
+                style: TextStyle(color: Colors.blue),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // Menampilkan dialog pilihan sumber gambar
@@ -130,14 +293,14 @@ class _ProfilPageState extends State<ProfilPage> {
     try {
       final pickedFile = await _picker.pickImage(
         source: source,
-        imageQuality: 100, // Pastikan kualitas tinggi
+        imageQuality: 100,
       );
 
       if (pickedFile != null) {
         final croppedFile = await ImageCropper().cropImage(
           sourcePath: pickedFile.path,
           compressFormat: ImageCompressFormat.jpg,
-          compressQuality: 90, // Tingkatkan kualitas compress
+          compressQuality: 90,
           aspectRatioPresets: [CropAspectRatioPreset.square],
           cropStyle: CropStyle.circle,
           uiSettings: [
@@ -145,7 +308,7 @@ class _ProfilPageState extends State<ProfilPage> {
               toolbarTitle: 'Crop Foto',
               toolbarColor: Colors.deepPurple,
               toolbarWidgetColor: Colors.white,
-              hideBottomControls: false, // Tampilkan kontrol untuk lebih fleksibel
+              hideBottomControls: false,
               lockAspectRatio: true,
               initAspectRatio: CropAspectRatioPreset.square,
             ),
@@ -159,18 +322,15 @@ class _ProfilPageState extends State<ProfilPage> {
         if (croppedFile != null) {
           setState(() {
             selectedImage = File(croppedFile.path);
-            // Generate key baru untuk memaksa rebuild avatar
             _avatarKey = UniqueKey();
           });
           
-          // Debug print untuk memastikan file ada
           debugPrint("Cropped image path: ${croppedFile.path}");
           debugPrint("Cropped image exists: ${await File(croppedFile.path).exists()}");
         }
       }
     } catch (e) {
       debugPrint("Error selecting image: $e");
-      // Tampilkan error ke user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error memilih gambar: $e')),
@@ -215,12 +375,10 @@ class _ProfilPageState extends State<ProfilPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Data berhasil diperbarui')),
         );
-        // Reset selected image setelah berhasil upload
         setState(() {
           selectedImage = null;
           _avatarKey = UniqueKey();
         });
-        // Refresh data form
         _fetchForm();
       } else {
         if (!mounted) return;
@@ -245,6 +403,45 @@ class _ProfilPageState extends State<ProfilPage> {
           filled: true,
           fillColor: const Color(0xFF1E2156),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        validator: (value) => (value == null || value.isEmpty) ? 'Tidak boleh kosong' : null,
+      ),
+    );
+  }
+
+  // Widget khusus untuk field alamat dengan tombol lokasi
+  Widget buildAddressField(String key) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextFormField(
+        controller: _controllers[key],
+        style: const TextStyle(color: Colors.white),
+        maxLines: 3,
+        decoration: InputDecoration(
+          labelText: _fieldLabels[key],
+          labelStyle: const TextStyle(color: Colors.white),
+          filled: true,
+          fillColor: const Color(0xFF1E2156),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          suffixIcon: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                onPressed: _isLoadingLocation ? null : _showAddressInputDialog,
+                icon: _isLoadingLocation 
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.location_on, color: Colors.blue),
+                tooltip: 'Pilih metode input alamat',
+              ),
+            ],
+          ),
         ),
         validator: (value) => (value == null || value.isEmpty) ? 'Tidak boleh kosong' : null,
       ),
@@ -312,19 +509,15 @@ class _ProfilPageState extends State<ProfilPage> {
     );
   }
 
-  // Widget untuk menampilkan avatar dengan prioritas yang jelas
   Widget _buildAvatar() {
     ImageProvider? imageProvider;
     Widget? child;
 
     if (selectedImage != null) {
-      // Prioritas 1: Gambar yang baru dipilih/dicrop
       imageProvider = FileImage(selectedImage!);
     } else if (_formData.fotoProfil.isNotEmpty) {
-      // Prioritas 2: Gambar dari server
       imageProvider = NetworkImage(_formData.fotoProfil);
     } else {
-      // Prioritas 3: Placeholder icon
       child = const Icon(
         Icons.add_a_photo, 
         color: Colors.white, 
@@ -333,7 +526,7 @@ class _ProfilPageState extends State<ProfilPage> {
     }
 
     return Container(
-      key: _avatarKey, // Key untuk memaksa rebuild
+      key: _avatarKey,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
@@ -378,7 +571,6 @@ class _ProfilPageState extends State<ProfilPage> {
                 key: _formKey,
                 child: ListView(
                   children: [
-                    // Avatar dengan gesture detector
                     Center(
                       child: GestureDetector(
                         onTap: showImageSourceDialog,
@@ -386,7 +578,6 @@ class _ProfilPageState extends State<ProfilPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // Text hint untuk user
                     const Center(
                       child: Text(
                         'Tap untuk mengubah foto',
@@ -401,7 +592,7 @@ class _ProfilPageState extends State<ProfilPage> {
                     buildTextField('nik'),
                     buildTextField('phoneNumber'),
                     buildDatePickerField('tanggalLahir'),
-                    buildTextField('alamat'),
+                    buildAddressField('alamat'), // Menggunakan widget khusus untuk alamat
                     buildDropdownField('gender', ['Laki-laki', 'Perempuan']),
                     buildDropdownField('agama', ['Islam', 'Kristen', 'Katolik', 'Hindu', 'Budha', 'Konghucu']),
                     buildDropdownField('jobs', ['Pelajar', 'Mahasiswa', 'PNS', 'Wiraswasta', 'Karyawan', 'Lainnya']),

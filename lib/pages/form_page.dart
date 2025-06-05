@@ -1,9 +1,12 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'home_page.dart';
 import 'login_page.dart';
@@ -27,10 +30,14 @@ class _FormPageState extends State<FormPage> {
   String agama = 'Islam';
   String pekerjaan = 'Pelajar';
   bool isLoading = false;
+  bool isLoadingLocation = false;
   File? selectedImage;
   
   // Key untuk memaksa rebuild CircleAvatar
   Key _avatarKey = UniqueKey();
+  
+  // Google Maps API Key
+  final String apiKey = dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
 
   final ImagePicker _picker = ImagePicker();
 
@@ -136,6 +143,95 @@ class _FormPageState extends State<FormPage> {
           SnackBar(content: Text('Error selecting image: $e')),
         );
       }
+    }
+  }
+
+  // Fungsi untuk mendapatkan lokasi saat ini dan convert ke alamat
+  Future<void> getCurrentLocationAddress() async {
+    setState(() => isLoadingLocation = true);
+    
+    try {
+      // Cek permission
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw Exception('Location permission denied');
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('Location permission permanently denied');
+      }
+
+      // Cek apakah GPS enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('Location service is disabled');
+      }
+
+      // Dapatkan posisi saat ini
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
+      );
+
+      // Convert koordinat ke alamat menggunakan Google Geocoding API
+      await getAddressFromCoordinates(position.latitude, position.longitude);
+      
+    } catch (e) {
+      debugPrint("Error getting location: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mendapatkan lokasi: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => isLoadingLocation = false);
+      }
+    }
+  }
+
+  // Fungsi untuk convert koordinat ke alamat
+  Future<void> getAddressFromCoordinates(double lat, double lng) async {
+    if (apiKey.isEmpty) {
+      throw Exception('Google Maps API Key not found');
+    }
+
+    try {
+      final url = 'https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lng&key=$apiKey&language=id';
+      final response = await http.get(Uri.parse(url));
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        if (data['status'] == 'OK' && data['results'].isNotEmpty) {
+          String address = data['results'][0]['formatted_address'];
+          
+          setState(() {
+            alamatController.text = address;
+          });
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Alamat berhasil diisi otomatis'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } else {
+          throw Exception('No address found for this location');
+        }
+      } else {
+        throw Exception('Failed to get address from coordinates');
+      }
+    } catch (e) {
+      throw Exception('Error converting coordinates to address: $e');
     }
   }
 
@@ -395,12 +491,40 @@ class _FormPageState extends State<FormPage> {
                 validator: (value) => (value == null || value.isEmpty) ? "Wajib diisi" : null,
               ),
               const SizedBox(height: 16),
+              // Field alamat dengan tombol lokasi
               TextFormField(
                 controller: alamatController,
-                decoration: buildInputDecoration("Alamat", Icons.home),
+                decoration: buildInputDecoration("Alamat", Icons.home).copyWith(
+                  suffixIcon: isLoadingLocation 
+                    ? const Padding(
+                        padding: EdgeInsets.all(12.0),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.amber,
+                          ),
+                        ),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.my_location, color: Colors.amber),
+                        onPressed: getCurrentLocationAddress,
+                        tooltip: 'Gunakan lokasi saat ini',
+                      ),
+                ),
                 style: const TextStyle(color: Colors.white),
                 maxLines: 3,
                 validator: (value) => (value == null || value.isEmpty) ? "Wajib diisi" : null,
+              ),
+              const SizedBox(height: 8),
+              // Text hint untuk alamat
+              const Text(
+                'Tap ikon lokasi untuk mengisi alamat otomatis berdasarkan GPS',
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(

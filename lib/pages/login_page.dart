@@ -38,6 +38,8 @@ class _LoginPageState extends State<LoginPage> {
           final sessionId = rawCookie.split(';')[0];
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('session', sessionId);
+          await prefs.setString('username', usernameController.text);
+
 
           final check = await http.get(
             Uri.parse('https://api-pinjol-589948883802.us-central1.run.app/api/form'),
