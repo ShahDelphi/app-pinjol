@@ -95,12 +95,29 @@ class _HomeContentPageState extends State<HomeContentPage> {
   bool isLoading = true;
   String namaLengkap = "Username"; // Default value
   bool isLoadingProfile = true;
+  String currentUsername = ""; // Untuk menyimpan username saat ini
 
   @override
   void initState() {
     super.initState();
-    _loadHistoryData();
-    _fetchUserProfile(); // Fetch user profile data
+    _initializeData();
+  }
+
+  // Initialize data dan fetch profile sekaligus
+  Future<void> _initializeData() async {
+    await _getCurrentUsername();
+    await Future.wait([
+      _loadHistoryData(),
+      _fetchUserProfile(),
+    ]);
+  }
+
+  // Mendapatkan username saat ini
+  Future<void> _getCurrentUsername() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      currentUsername = prefs.getString('username') ?? 'default_user';
+    });
   }
 
   // Fetch user profile data from API
@@ -118,26 +135,33 @@ class _HomeContentPageState extends State<HomeContentPage> {
         final jsonRes = jsonDecode(res.body);
         final form = FormModel.fromJson(jsonRes['data']);
         setState(() {
-          namaLengkap = form.namaLengkap.isNotEmpty ? form.namaLengkap : "Username";
+          namaLengkap = form.namaLengkap.isNotEmpty ? form.namaLengkap : currentUsername;
           isLoadingProfile = false;
         });
       } else {
         setState(() {
+          namaLengkap = currentUsername;
           isLoadingProfile = false;
         });
       }
     } catch (e) {
       debugPrint("Error fetching user profile: $e");
       setState(() {
+        namaLengkap = currentUsername;
         isLoadingProfile = false;
       });
     }
   }
 
-  // Load history data saat widget pertama kali dibuat
+  // Load history data berdasarkan username
   Future<void> _loadHistoryData() async {
     try {
-      final loadedHistory = await HistoryManager.loadHistory();
+      // Pastikan username sudah didapat
+      if (currentUsername.isEmpty) {
+        await _getCurrentUsername();
+      }
+      
+      final loadedHistory = await HistoryManager.loadHistory(currentUsername);
       setState(() {
         historyItems = loadedHistory;
         isLoading = false;
@@ -150,10 +174,10 @@ class _HomeContentPageState extends State<HomeContentPage> {
     }
   }
 
-  // Menambahkan item baru ke history
+  // Menambahkan item baru ke history berdasarkan username
   Future<void> addHistoryItem(Map<String, String> item) async {
     try {
-      await HistoryManager.addHistoryItem(item);
+      await HistoryManager.addHistoryItem(item, currentUsername);
       // Reload history untuk memastikan data terbaru
       await _loadHistoryData();
     } catch (e) {
@@ -167,7 +191,7 @@ class _HomeContentPageState extends State<HomeContentPage> {
     }
   }
 
-  // Menghapus semua history
+  // Menghapus semua history berdasarkan username
   Future<void> _clearHistory() async {
     final bool? confirm = await showDialog<bool>(
       context: context,
@@ -191,7 +215,7 @@ class _HomeContentPageState extends State<HomeContentPage> {
 
     if (confirm == true) {
       try {
-        await HistoryManager.clearHistory();
+        await HistoryManager.clearHistory(currentUsername);
         await _loadHistoryData();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

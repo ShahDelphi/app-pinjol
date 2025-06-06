@@ -35,7 +35,10 @@ class _HistoryListState extends State<HistoryList> {
 
     if (confirm == true) {
       try {
-        await HistoryManager.removeHistoryItem(index);
+        // Dapatkan username saat ini
+        final username = await HistoryManager.getCurrentUsername();
+        await HistoryManager.removeHistoryItem(index, username);
+        
         // Refresh parent widget untuk memuat ulang data
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -131,7 +134,9 @@ class _HistoryListState extends State<HistoryList> {
             );
           },
           onDismissed: (direction) async {
-            await HistoryManager.removeHistoryItem(index);
+            // Dapatkan username saat ini
+            final username = await HistoryManager.getCurrentUsername();
+            await HistoryManager.removeHistoryItem(index, username);
           },
           background: Container(
             alignment: Alignment.centerRight,
