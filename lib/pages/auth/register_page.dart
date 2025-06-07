@@ -1,60 +1,53 @@
 import 'package:flutter/material.dart';
-import 'form_page.dart';
-import 'home_page.dart';
-import 'register_page.dart';
-import '../services/api_service.dart';
+import 'login_page.dart';
+import '../../services/api_service.dart';
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+class RegisterPage extends StatefulWidget {
+  const RegisterPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController usernameController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  final TextEditingController confirmController = TextEditingController();
   bool isLoading = false;
   bool showPassword = false;
 
-  Future<void> login() async {
+  Future<void> register() async {
+    // Validasi password confirmation
+    if (passwordController.text != confirmController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Password dan konfirmasi tidak cocok")),
+      );
+      return;
+    }
+
     setState(() => isLoading = true);
 
-    // Panggil API service untuk login
-    final loginResponse = await ApiService.login(
+    // Panggil API service
+    final response = await ApiService.register(
       username: usernameController.text,
       password: passwordController.text,
+      confirmPassword: confirmController.text,
     );
 
     if (!mounted) return;
 
-    if (loginResponse.success && loginResponse.sessionId != null) {
-      // Cek status form submission
-      final formStatusResponse = await ApiService.checkFormStatus(loginResponse.sessionId!);
-      
-      if (!mounted) return;
-
-      if (formStatusResponse.success) {
-        // Navigate ke halaman yang sesuai berdasarkan status form
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => formStatusResponse.isSubmitted 
-                ? const HomePage() 
-                : const FormPage(),
-          ),
-        );
-      } else {
-        // Jika gagal cek status form, tetap navigate ke FormPage sebagai default
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const FormPage()),
-        );
-      }
-    } else {
-      // Tampilkan pesan error
+    // Handle response
+    if (response.success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(loginResponse.message)),
+        SnackBar(content: Text(response.message)),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(response.message)),
       );
     }
 
@@ -63,7 +56,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = const Color(0xFF0B0D3A); // Dark blue background
+    final backgroundColor = const Color(0xFF0B0D3A); // Dark background
     final accentColor = Colors.amber;
 
     return Scaffold(
@@ -78,7 +71,7 @@ class _LoginPageState extends State<LoginPage> {
                 color: accentColor,
                 alignment: Alignment.center,
                 child: const Text(
-                  "Sign in",
+                  "Register",
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
@@ -122,9 +115,7 @@ class _LoginPageState extends State<LoginPage> {
                           color: Colors.white70,
                         ),
                         onPressed: () {
-                          setState(() {
-                            showPassword = !showPassword;
-                          });
+                          setState(() => showPassword = !showPassword);
                         },
                       ),
                       enabledBorder: const UnderlineInputBorder(
@@ -135,12 +126,29 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: confirmController,
+                    obscureText: !showPassword,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.lock_outline, color: Colors.white),
+                      labelText: "Konfirmasi Password",
+                      labelStyle: TextStyle(color: Colors.white),
+                      enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.white54),
+                      ),
+                      focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.white),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 40),
                   SizedBox(
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: isLoading ? null : login,
+                      onPressed: isLoading ? null : register,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: accentColor,
                         shape: RoundedRectangleBorder(
@@ -150,7 +158,7 @@ class _LoginPageState extends State<LoginPage> {
                       child: isLoading
                           ? const CircularProgressIndicator(color: Colors.white)
                           : const Text(
-                              "Login",
+                              "Register",
                               style: TextStyle(fontSize: 16, color: Colors.white),
                             ),
                     ),
@@ -159,19 +167,16 @@ class _LoginPageState extends State<LoginPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
-                        "Don't have an Account?",
-                        style: TextStyle(color: Colors.white70),
-                      ),
+                      const Text("Sudah punya akun?", style: TextStyle(color: Colors.white70)),
                       TextButton(
                         onPressed: () {
-                          Navigator.push(
+                          Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(builder: (_) => const RegisterPage()),
+                            MaterialPageRoute(builder: (_) => const LoginPage()),
                           );
                         },
                         child: Text(
-                          "Sign up",
+                          "Login",
                           style: TextStyle(color: accentColor),
                         ),
                       ),

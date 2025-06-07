@@ -7,9 +7,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import '../../utils/location_picker.dart';
+import '../../../utils/location_picker.dart';
 
-import 'home_page.dart';
+import '../home_page.dart';
 import 'login_page.dart';
 
 class FormPage extends StatefulWidget {

@@ -1,53 +1,60 @@
 import 'package:flutter/material.dart';
-import 'login_page.dart';
-import '../services/api_service.dart';
+import 'form_page.dart';
+import '../home_page.dart';
+import 'register_page.dart';
+import '../../services/api_service.dart';
 
-class RegisterPage extends StatefulWidget {
-  const RegisterPage({super.key});
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
 
   @override
-  State<RegisterPage> createState() => _RegisterPageState();
+  State<LoginPage> createState() => _LoginPageState();
 }
 
-class _RegisterPageState extends State<RegisterPage> {
+class _LoginPageState extends State<LoginPage> {
   final TextEditingController usernameController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmController = TextEditingController();
   bool isLoading = false;
   bool showPassword = false;
 
-  Future<void> register() async {
-    // Validasi password confirmation
-    if (passwordController.text != confirmController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Password dan konfirmasi tidak cocok")),
-      );
-      return;
-    }
-
+  Future<void> login() async {
     setState(() => isLoading = true);
 
-    // Panggil API service
-    final response = await ApiService.register(
+    // Panggil API service untuk login
+    final loginResponse = await ApiService.login(
       username: usernameController.text,
       password: passwordController.text,
-      confirmPassword: confirmController.text,
     );
 
     if (!mounted) return;
 
-    // Handle response
-    if (response.success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(response.message)),
-      );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginPage()),
-      );
+    if (loginResponse.success && loginResponse.sessionId != null) {
+      // Cek status form submission
+      final formStatusResponse = await ApiService.checkFormStatus(loginResponse.sessionId!);
+      
+      if (!mounted) return;
+
+      if (formStatusResponse.success) {
+        // Navigate ke halaman yang sesuai berdasarkan status form
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => formStatusResponse.isSubmitted 
+                ? const HomePage() 
+                : const FormPage(),
+          ),
+        );
+      } else {
+        // Jika gagal cek status form, tetap navigate ke FormPage sebagai default
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const FormPage()),
+        );
+      }
     } else {
+      // Tampilkan pesan error
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(response.message)),
+        SnackBar(content: Text(loginResponse.message)),
       );
     }
 
@@ -56,7 +63,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = const Color(0xFF0B0D3A); // Dark background
+    final backgroundColor = const Color(0xFF0B0D3A); // Dark blue background
     final accentColor = Colors.amber;
 
     return Scaffold(
@@ -71,7 +78,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 color: accentColor,
                 alignment: Alignment.center,
                 child: const Text(
-                  "Register",
+                  "Sign in",
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
@@ -115,7 +122,9 @@ class _RegisterPageState extends State<RegisterPage> {
                           color: Colors.white70,
                         ),
                         onPressed: () {
-                          setState(() => showPassword = !showPassword);
+                          setState(() {
+                            showPassword = !showPassword;
+                          });
                         },
                       ),
                       enabledBorder: const UnderlineInputBorder(
@@ -126,29 +135,12 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: confirmController,
-                    obscureText: !showPassword,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.lock_outline, color: Colors.white),
-                      labelText: "Konfirmasi Password",
-                      labelStyle: TextStyle(color: Colors.white),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white54),
-                      ),
-                      focusedBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white),
-                      ),
-                    ),
-                  ),
                   const SizedBox(height: 40),
                   SizedBox(
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: isLoading ? null : register,
+                      onPressed: isLoading ? null : login,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: accentColor,
                         shape: RoundedRectangleBorder(
@@ -158,7 +150,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       child: isLoading
                           ? const CircularProgressIndicator(color: Colors.white)
                           : const Text(
-                              "Register",
+                              "Login",
                               style: TextStyle(fontSize: 16, color: Colors.white),
                             ),
                     ),
@@ -167,16 +159,19 @@ class _RegisterPageState extends State<RegisterPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text("Sudah punya akun?", style: TextStyle(color: Colors.white70)),
+                      const Text(
+                        "Don't have an Account?",
+                        style: TextStyle(color: Colors.white70),
+                      ),
                       TextButton(
                         onPressed: () {
-                          Navigator.pushReplacement(
+                          Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => const LoginPage()),
+                            MaterialPageRoute(builder: (_) => const RegisterPage()),
                           );
                         },
                         child: Text(
-                          "Login",
+                          "Sign up",
                           style: TextStyle(color: accentColor),
                         ),
                       ),

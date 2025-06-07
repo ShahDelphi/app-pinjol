@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; // Import dotenv
-import 'pages/splash_page.dart';
+import 'pages/auth/splash_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized(); // ✅ WAJIB sebelum async ops

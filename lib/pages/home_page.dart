@@ -5,7 +5,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:math';
-import 'login_page.dart';
+import 'auth/login_page.dart';
 import './menu/debt_page.dart';
 import './menu/exchange_page.dart';
 import './menu/time_page.dart';
