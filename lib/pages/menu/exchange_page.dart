@@ -163,7 +163,7 @@ class _ExchangePageState extends State<ExchangePage> {
   }
 
   // Untuk API yang memerlukan key (opsional)
-  Future<void> _fetchExchangeRatesWithKey(String apiKey) async {
+  /*Future<void> _fetchExchangeRatesWithKey(String apiKey) async {
     setState(() {
       _isLoading = true;
     });
@@ -203,7 +203,7 @@ class _ExchangePageState extends State<ExchangePage> {
       // Fallback ke API gratis
       await _fetchExchangeRates();
     }
-  }
+  }*/
 
   void _showSuccessMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
