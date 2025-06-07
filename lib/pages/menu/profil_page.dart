@@ -8,6 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../../models/form_model.dart';
+import '../../utils/location_picker.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class ProfilPage extends StatefulWidget {
   const ProfilPage({super.key});
@@ -176,7 +178,7 @@ class _ProfilPageState extends State<ProfilPage> {
     }
   }
 
-  // Dialog untuk memilih metode input alamat
+// Dialog untuk memilih metode input alamat
   Future<void> _showAddressInputDialog() async {
     showDialog(
       context: context,
@@ -184,7 +186,7 @@ class _ProfilPageState extends State<ProfilPage> {
         return AlertDialog(
           backgroundColor: const Color(0xFF1E2156),
           title: const Text(
-            'Input Alamat',
+            'Pilih Metode Input Alamat',
             style: TextStyle(color: Colors.white),
           ),
           content: Column(
@@ -203,6 +205,21 @@ class _ProfilPageState extends State<ProfilPage> {
                 onTap: () {
                   Navigator.pop(context);
                   _useCurrentLocation();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.map, color: Colors.blue),
+                title: const Text(
+                  'Pilih di Peta',
+                  style: TextStyle(color: Colors.white),
+                ),
+                subtitle: const Text(
+                  'Buka peta untuk memilih lokasi',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _openLocationPicker();
                 },
               ),
               ListTile(
@@ -235,6 +252,77 @@ class _ProfilPageState extends State<ProfilPage> {
         );
       },
     );
+  }
+
+  // Tambahkan fungsi untuk membuka location picker
+  Future<void> _openLocationPicker() async {
+    try {
+      // Dapatkan koordinat dari alamat saat ini jika ada
+      LatLng? initialLocation;
+      if (_controllers['alamat']!.text.isNotEmpty) {
+        initialLocation = await _getCoordinatesFromAddress(_controllers['alamat']!.text);
+      }
+
+      final result = await Navigator.push<Map<String, dynamic>>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => LocationPickerPage(
+            initialLocation: initialLocation,
+            initialAddress: _controllers['alamat']!.text,
+          ),
+        ),
+      );
+
+      if (result != null && result['address'] != null) {
+        setState(() {
+          _controllers['alamat']!.text = result['address'];
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Lokasi berhasil dipilih dari peta'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Error opening location picker: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error membuka peta: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Tambahkan fungsi untuk mendapatkan koordinat dari alamat (Geocoding)
+  Future<LatLng?> _getCoordinatesFromAddress(String address) async {
+    if (apiKey.isEmpty || address.isEmpty) return null;
+    
+    try {
+      final url = 'https://maps.googleapis.com/maps/api/geocode/json?'
+          'address=${Uri.encodeComponent(address)}&'
+          'key=$apiKey&language=id';
+      
+      final response = await http.get(Uri.parse(url));
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'OK' && data['results'].isNotEmpty) {
+          final location = data['results'][0]['geometry']['location'];
+          return LatLng(location['lat'], location['lng']);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error getting coordinates from address: $e');
+    }
+    
+    return null;
   }
 
   // Menampilkan dialog pilihan sumber gambar
@@ -557,7 +645,7 @@ class _ProfilPageState extends State<ProfilPage> {
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: const Text(
-          'Profil Page',
+          'My Profil',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         backgroundColor: const Color(0xFF0B0D3A),
@@ -609,6 +697,7 @@ class _ProfilPageState extends State<ProfilPage> {
                       child: const Text(
                         'Simpan',
                         style: TextStyle(
+                          color: Colors.black,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),

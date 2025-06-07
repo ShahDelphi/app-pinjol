@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import 'dart:convert';
+import 'dart:async';
+import 'dart:math';
 import 'login_page.dart';
 import './menu/debt_page.dart';
 import './menu/exchange_page.dart';
@@ -74,7 +77,7 @@ class _HomePageState extends State<HomePage> {
           );
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.notification_important_outlined), label: ''),
+          BottomNavigationBarItem(icon: Icon(Icons.feedback), label: ''),
           BottomNavigationBarItem(icon: Icon(Icons.home), label: ''),
           BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: ''),
         ],
@@ -97,10 +100,76 @@ class _HomeContentPageState extends State<HomeContentPage> {
   bool isLoadingProfile = true;
   String currentUsername = ""; // Untuk menyimpan username saat ini
 
+  // Shake detection variables
+  StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
+  double _shakeThreshold = 18.0;
+  DateTime? _lastShakeTime;
+  bool _isShaking = false;
+
   @override
   void initState() {
     super.initState();
     _initializeData();
+    _initializeShakeDetection();
+  }
+
+  @override
+  void dispose() {
+    _accelerometerSubscription?.cancel();
+    super.dispose();
+  }
+
+  // Initialize shake detection
+  void _initializeShakeDetection() {
+    _accelerometerSubscription = accelerometerEvents.listen((AccelerometerEvent event) {
+      double acceleration = sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
+      
+      if (acceleration > _shakeThreshold) {
+        DateTime now = DateTime.now();
+        
+        // Prevent multiple shake detections in quick succession
+        if (_lastShakeTime == null || now.difference(_lastShakeTime!).inMilliseconds > 2000) {
+          _lastShakeTime = now;
+          if (!_isShaking) {
+            _onShakeDetected();
+          }
+        }
+      }
+    });
+  }
+
+  // Handle shake detection
+  void _onShakeDetected() async {
+    if (_isShaking) return;
+    
+    setState(() {
+      _isShaking = true;
+    });
+
+    // Show shake indicator
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.vibration, color: Colors.white),
+            SizedBox(width: 8),
+            Text('Shake detected! Clearing history...'),
+          ],
+        ),
+        backgroundColor: Colors.orange,
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    // Add a small delay to show the shake feedback
+    await Future.delayed(Duration(milliseconds: 500));
+
+    // Clear history automatically
+    await _clearHistoryWithoutConfirmation();
+
+    setState(() {
+      _isShaking = false;
+    });
   }
 
   // Initialize data dan fetch profile sekaligus
@@ -191,14 +260,72 @@ class _HomeContentPageState extends State<HomeContentPage> {
     }
   }
 
-  // Menghapus semua history berdasarkan username
+  // Clear history without confirmation (for shake feature)
+  Future<void> _clearHistoryWithoutConfirmation() async {
+    try {
+      await HistoryManager.clearHistory(currentUsername);
+      await _loadHistoryData();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('History cleared by shake!'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      print('Error clearing history: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Gagal menghapus history'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Menghapus semua history berdasarkan username (with confirmation)
   Future<void> _clearHistory() async {
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Hapus History'),
-          content: const Text('Apakah Anda yakin ingin menghapus semua history?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Apakah Anda yakin ingin menghapus semua history?'),
+              SizedBox(height: 16),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Tip: Kocok HP untuk menghapus history lebih cepat!',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -214,24 +341,7 @@ class _HomeContentPageState extends State<HomeContentPage> {
     );
 
     if (confirm == true) {
-      try {
-        await HistoryManager.clearHistory(currentUsername);
-        await _loadHistoryData();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('History berhasil dihapus'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } catch (e) {
-        print('Error clearing history: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Gagal menghapus history'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      await _clearHistoryWithoutConfirmation();
     }
   }
 
@@ -294,114 +404,177 @@ class _HomeContentPageState extends State<HomeContentPage> {
           )
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Menampilkan selamat datang dengan nama lengkap
-            Column(
+      body: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  "Selamat Datang,",
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
+                // Menampilkan selamat datang dengan nama lengkap
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (isLoadingProfile)
-                      const SizedBox(
-                        width: 16,
-                        height: 16,
+                    const Text(
+                      "Selamat Datang,",
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        if (isLoadingProfile)
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        else
+                          Expanded(
+                            child: Text(
+                              namaLengkap,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconCard(
+                      icon: Icons.arrow_upward,
+                      label: 'Debt',
+                      onTap: () async {
+                        final result = await Navigator.push<Map<String, String>>(
+                          context,
+                          MaterialPageRoute(builder: (_) => const DebtPage()),
+                        );
+                        if (result != null) {
+                          await addHistoryItem(result);
+                        }
+                      },
+                    ),
+                    IconCard(
+                      icon: Icons.request_quote, 
+                      label: 'Exchange', 
+                      onTap: () async {
+                        final result = await Navigator.push<Map<String, String>>(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ExchangePage()),
+                        );
+                        if (result != null) {
+                          await addHistoryItem(result);
+                        }
+                      },
+                    ),
+                    IconCard(icon: Icons.access_time, label: 'Praying Time', onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const TimePage()));
+                    }),
+                    IconCard(icon: Icons.send, label: 'Location', onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const LocationPage()));
+                    }),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Text("History", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.vibration, color: Colors.white70, size: 12),
+                              SizedBox(width: 4),
+                              Text(
+                                'Shake to clear',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        Text("${historyItems.length} items", style: const TextStyle(color: Colors.white54, fontSize: 14)),
+                        const SizedBox(width: 8),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: isLoading 
+                    ? const Center(
                         child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
                         ),
                       )
-                    else
-                      Expanded(
-                        child: Text(
-                          namaLengkap,
-                          style: const TextStyle(
+                    : HistoryList(historyItems: historyItems),
+                ),
+              ],
+            ),
+          ),
+          // Shake animation overlay
+          if (_isShaking)
+            Positioned.fill(
+              child: AnimatedContainer(
+                duration: Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                ),
+                child: Center(
+                  child: Container(
+                    padding: EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.vibration, color: Colors.orange, size: 40),
+                        SizedBox(height: 8),
+                        Text(
+                          'Clearing History...',
+                          style: TextStyle(
                             color: Colors.white,
-                            fontSize: 22,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconCard(
-                  icon: Icons.arrow_upward,
-                  label: 'Debt',
-                  onTap: () async {
-                    final result = await Navigator.push<Map<String, String>>(
-                      context,
-                      MaterialPageRoute(builder: (_) => const DebtPage()),
-                    );
-                    if (result != null) {
-                      await addHistoryItem(result);
-                    }
-                  },
-                ),
-                IconCard(
-                  icon: Icons.request_quote, 
-                  label: 'Exchange', 
-                  onTap: () async {
-                    final result = await Navigator.push<Map<String, String>>(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ExchangePage()),
-                    );
-                    if (result != null) {
-                      await addHistoryItem(result);
-                    }
-                  },
-                ),
-                IconCard(icon: Icons.access_time, label: 'Time', onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const TimePage()));
-                }),
-                IconCard(icon: Icons.send, label: 'Location', onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const LocationPage()));
-                }),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("History", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                Row(
-                  children: [
-                    Text("${historyItems.length} items", style: const TextStyle(color: Colors.white54, fontSize: 14)),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.chevron_right, color: Colors.white),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: isLoading 
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
+                      ],
                     ),
-                  )
-                : HistoryList(historyItems: historyItems),
+                  ),
+                ),
+              ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }

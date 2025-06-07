@@ -1,7 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'login_page.dart';
+import '../services/api_service.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -18,6 +17,7 @@ class _RegisterPageState extends State<RegisterPage> {
   bool showPassword = false;
 
   Future<void> register() async {
+    // Validasi password confirmation
     if (passwordController.text != confirmController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Password dan konfirmasi tidak cocok")),
@@ -27,33 +27,27 @@ class _RegisterPageState extends State<RegisterPage> {
 
     setState(() => isLoading = true);
 
-    try {
-      final response = await http.post(
-        Uri.parse('https://api-pinjol-589948883802.us-central1.run.app/api/register'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'username': usernameController.text,
-          'password': passwordController.text,
-          'confirm_password': confirmController.text,
-        }),
-      );
+    // Panggil API service
+    final response = await ApiService.register(
+      username: usernameController.text,
+      password: passwordController.text,
+      confirmPassword: confirmController.text,
+    );
 
-      if (response.statusCode == 201) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Registrasi berhasil. Silakan login.")),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginPage()),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Gagal register: ${response.body}")),
-        );
-      }
-    } catch (e) {
+    if (!mounted) return;
+
+    // Handle response
+    if (response.success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Terjadi kesalahan: $e")),
+        SnackBar(content: Text(response.message)),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(response.message)),
       );
     }
 
@@ -137,14 +131,14 @@ class _RegisterPageState extends State<RegisterPage> {
                     controller: confirmController,
                     obscureText: !showPassword,
                     style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.lock_outline, color: Colors.white),
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.lock_outline, color: Colors.white),
                       labelText: "Konfirmasi Password",
-                      labelStyle: const TextStyle(color: Colors.white),
-                      enabledBorder: const UnderlineInputBorder(
+                      labelStyle: TextStyle(color: Colors.white),
+                      enabledBorder: UnderlineInputBorder(
                         borderSide: BorderSide(color: Colors.white54),
                       ),
-                      focusedBorder: const UnderlineInputBorder(
+                      focusedBorder: UnderlineInputBorder(
                         borderSide: BorderSide(color: Colors.white),
                       ),
                     ),

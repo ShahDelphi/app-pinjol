@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../../utils/location_picker.dart';
 
 import 'home_page.dart';
 import 'login_page.dart';
@@ -147,51 +148,169 @@ class _FormPageState extends State<FormPage> {
   }
 
   // Fungsi untuk mendapatkan lokasi saat ini dan convert ke alamat
+  Future<void> _showAddressInputDialog() async {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E2156),
+          title: const Text(
+            'Pilih Metode Input Alamat',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.my_location, color: Colors.amber),
+                title: const Text(
+                  'Gunakan Lokasi Saat Ini',
+                  style: TextStyle(color: Colors.white),
+                ),
+                subtitle: const Text(
+                  'Deteksi otomatis alamat dari GPS',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  getCurrentLocationAddress();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.map, color: Colors.amber),
+                title: const Text(
+                  'Pilih di Peta',
+                  style: TextStyle(color: Colors.white),
+                ),
+                subtitle: const Text(
+                  'Buka peta untuk memilih lokasi',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _openLocationPicker();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit, color: Colors.amber),
+                title: const Text(
+                  'Input Manual',
+                  style: TextStyle(color: Colors.white),
+                ),
+                subtitle: const Text(
+                  'Ketik alamat secara manual',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  // Focus ke text field alamat
+                  FocusScope.of(context).requestFocus(FocusNode());
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Batal',
+                style: TextStyle(color: Colors.amber),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Method yang hilang - getCurrentLocationAddress
   Future<void> getCurrentLocationAddress() async {
-    setState(() => isLoadingLocation = true);
-    
+    setState(() {
+      isLoadingLocation = true;
+    });
+
     try {
-      // Cek permission
+      // Check if location services are enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('Location services are disabled. Please enable GPS/Location services.');
+      }
+
+      // Check location permissions
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          throw Exception('Location permission denied');
+          throw Exception('Location permissions are denied');
         }
       }
-
+      
       if (permission == LocationPermission.deniedForever) {
-        throw Exception('Location permission permanently denied');
+        throw Exception('Location permissions are permanently denied. Please enable in settings.');
       }
 
-      // Cek apakah GPS enabled
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        throw Exception('Location service is disabled');
-      }
-
-      // Dapatkan posisi saat ini
+      // Get current position
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: const Duration(seconds: 10),
       );
 
-      // Convert koordinat ke alamat menggunakan Google Geocoding API
+      // Convert coordinates to address
       await getAddressFromCoordinates(position.latitude, position.longitude);
-      
+
     } catch (e) {
-      debugPrint("Error getting location: $e");
+      debugPrint("Error getting current location: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal mendapatkan lokasi: ${e.toString()}'),
+            content: Text('Error mendapatkan lokasi: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
     } finally {
       if (mounted) {
-        setState(() => isLoadingLocation = false);
+        setState(() {
+          isLoadingLocation = false;
+        });
+      }
+    }
+  }
+
+  // Tambahkan fungsi untuk membuka location picker
+  Future<void> _openLocationPicker() async {
+    try {
+      final result = await Navigator.push<Map<String, dynamic>>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const LocationPickerPage(),
+        ),
+      );
+
+      if (result != null && result['address'] != null) {
+        setState(() {
+          alamatController.text = result['address'];
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Lokasi berhasil dipilih dari peta'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Error opening location picker: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error membuka peta: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -508,9 +627,9 @@ class _FormPageState extends State<FormPage> {
                         ),
                       )
                     : IconButton(
-                        icon: const Icon(Icons.my_location, color: Colors.amber),
-                        onPressed: getCurrentLocationAddress,
-                        tooltip: 'Gunakan lokasi saat ini',
+                        icon: const Icon(Icons.location_on, color: Colors.amber),
+                        onPressed: _showAddressInputDialog, // Ganti dengan dialog
+                        tooltip: 'Pilih metode input alamat',
                       ),
                 ),
                 style: const TextStyle(color: Colors.white),
@@ -520,7 +639,7 @@ class _FormPageState extends State<FormPage> {
               const SizedBox(height: 8),
               // Text hint untuk alamat
               const Text(
-                'Tap ikon lokasi untuk mengisi alamat otomatis berdasarkan GPS',
+                'Tap ikon lokasi untuk memilih metode input alamat',
                 style: TextStyle(
                   color: Colors.white54,
                   fontSize: 12,

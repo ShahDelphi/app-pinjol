@@ -1,10 +1,8 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'form_page.dart';
 import 'home_page.dart';
 import 'register_page.dart';
+import '../services/api_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -22,50 +20,41 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> login() async {
     setState(() => isLoading = true);
 
-    try {
-      final response = await http.post(
-        Uri.parse('https://api-pinjol-589948883802.us-central1.run.app/api/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'username': usernameController.text,
-          'password': passwordController.text,
-        }),
-      );
+    // Panggil API service untuk login
+    final loginResponse = await ApiService.login(
+      username: usernameController.text,
+      password: passwordController.text,
+    );
 
-      if (response.statusCode == 200) {
-        final rawCookie = response.headers['set-cookie'];
-        if (rawCookie != null && rawCookie.contains('connect.sid')) {
-          final sessionId = rawCookie.split(';')[0];
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('session', sessionId);
-          await prefs.setString('username', usernameController.text);
+    if (!mounted) return;
 
+    if (loginResponse.success && loginResponse.sessionId != null) {
+      // Cek status form submission
+      final formStatusResponse = await ApiService.checkFormStatus(loginResponse.sessionId!);
+      
+      if (!mounted) return;
 
-          final check = await http.get(
-            Uri.parse('https://api-pinjol-589948883802.us-central1.run.app/api/form'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Cookie': sessionId,
-            },
-          );
-
-          final isSubmitted = check.body.contains('"submitted":true');
-          if (!mounted) return;
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => isSubmitted ? const HomePage() : const FormPage(),
-            ),
-          );
-        }
+      if (formStatusResponse.success) {
+        // Navigate ke halaman yang sesuai berdasarkan status form
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => formStatusResponse.isSubmitted 
+                ? const HomePage() 
+                : const FormPage(),
+          ),
+        );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Login gagal. Cek username/password.")),
+        // Jika gagal cek status form, tetap navigate ke FormPage sebagai default
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const FormPage()),
         );
       }
-    } catch (e) {
+    } else {
+      // Tampilkan pesan error
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Terjadi kesalahan: $e")),
+        SnackBar(content: Text(loginResponse.message)),
       );
     }
 
@@ -106,14 +95,14 @@ class _LoginPageState extends State<LoginPage> {
                   TextField(
                     controller: usernameController,
                     style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.person, color: Colors.white),
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.person, color: Colors.white),
                       labelText: "Username",
-                      labelStyle: const TextStyle(color: Colors.white),
-                      enabledBorder: const UnderlineInputBorder(
+                      labelStyle: TextStyle(color: Colors.white),
+                      enabledBorder: UnderlineInputBorder(
                         borderSide: BorderSide(color: Colors.white54),
                       ),
-                      focusedBorder: const UnderlineInputBorder(
+                      focusedBorder: UnderlineInputBorder(
                         borderSide: BorderSide(color: Colors.white),
                       ),
                     ),

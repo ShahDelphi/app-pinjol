@@ -90,7 +90,7 @@ class _HistoryListState extends State<HistoryList> {
             ),
             SizedBox(height: 8),
             Text(
-              'Gunakan fitur Debt atau Exchange untuk membuat history',
+              'Menampilkan Transaksi dari Menu Debt dan Exchange',
               style: TextStyle(
                 color: Colors.white38,
                 fontSize: 12,
