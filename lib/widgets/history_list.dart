@@ -3,8 +3,13 @@ import '../utils/history_manager.dart';
 
 class HistoryList extends StatefulWidget {
   final List<Map<String, String>> historyItems;
+  final VoidCallback? onHistoryChanged; // Callback untuk refresh parent
 
-  const HistoryList({super.key, required this.historyItems});
+  const HistoryList({
+    super.key, 
+    required this.historyItems,
+    this.onHistoryChanged,
+  });
 
   @override
   State<HistoryList> createState() => _HistoryListState();
@@ -39,7 +44,12 @@ class _HistoryListState extends State<HistoryList> {
         final username = await HistoryManager.getCurrentUsername();
         await HistoryManager.removeHistoryItem(index, username);
         
-        // Refresh parent widget untuk memuat ulang data
+        // Trigger callback untuk refresh parent
+        if (widget.onHistoryChanged != null) {
+          widget.onHistoryChanged!();
+        }
+        
+        // Show success message
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -47,11 +57,6 @@ class _HistoryListState extends State<HistoryList> {
               backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
-          );
-          // Trigger refresh pada parent
-          Navigator.of(context).pop();
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const Scaffold()),
           );
         }
       } catch (e) {
@@ -134,9 +139,37 @@ class _HistoryListState extends State<HistoryList> {
             );
           },
           onDismissed: (direction) async {
-            // Dapatkan username saat ini
-            final username = await HistoryManager.getCurrentUsername();
-            await HistoryManager.removeHistoryItem(index, username);
+            try {
+              // Dapatkan username saat ini
+              final username = await HistoryManager.getCurrentUsername();
+              await HistoryManager.removeHistoryItem(index, username);
+              
+              // Trigger callback untuk refresh parent
+              if (widget.onHistoryChanged != null) {
+                widget.onHistoryChanged!();
+              }
+              
+              // Show success message
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Item history berhasil dihapus'),
+                    backgroundColor: Colors.green,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            } catch (e) {
+              print('Error removing history item: $e');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Gagal menghapus item history'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
           },
           background: Container(
             alignment: Alignment.centerRight,
@@ -214,7 +247,7 @@ class _HistoryListState extends State<HistoryList> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Input:',
+                        'Nominal:',
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
@@ -247,7 +280,7 @@ class _HistoryListState extends State<HistoryList> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Result:',
+                        'Hasil:',
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 12,

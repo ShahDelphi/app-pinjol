@@ -124,7 +124,7 @@ class _DebtPageState extends State<DebtPage> {
 
     // Tampilkan notifikasi
     await _showNotification(
-      '💰 Perhitungan Pinjaman Selesai',
+      '💰 Pinjaman berhasil diajukan',
       'Total yang harus dibayar: IDR ${_totalToPay.toStringAsFixed(2)}'
     );
 

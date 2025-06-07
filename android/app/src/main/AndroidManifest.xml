@@ -15,7 +15,7 @@
 
 
     <application
-        android:label="apk_pinjol"
+        android:label="Debt Plecit"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         

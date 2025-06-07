@@ -271,7 +271,7 @@ class _HomeContentPageState extends State<HomeContentPage> {
             children: [
               Icon(Icons.check_circle, color: Colors.white),
               SizedBox(width: 8),
-              Text('History cleared by shake!'),
+              Text('History cleared !'),
             ],
           ),
           backgroundColor: Colors.green,
@@ -535,7 +535,10 @@ class _HomeContentPageState extends State<HomeContentPage> {
                           valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
                         ),
                       )
-                    : HistoryList(historyItems: historyItems),
+                    : HistoryList(
+                        historyItems: historyItems,
+                        onHistoryChanged: _loadHistoryData, // Callback untuk refresh
+                      ),
                 ),
               ],
             ),
