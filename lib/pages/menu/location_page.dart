@@ -20,11 +20,42 @@ class _LocationPageState extends State<LocationPage> {
   final String apiKey = dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
 
   LatLng _currentLatLng = const LatLng(-6.200000, 106.816666); // Default Jakarta
+  
+  // Koordinat kantor di Klaten
+  static const LatLng _officeLatLng = LatLng(-7.707579666065323, 110.60223950644726); // Koordinat perkiraan untuk alamat tersebut
+  
   StreamSubscription<Position>? _positionStream;
+  Set<Marker> _markers = {};
 
   void _onMapCreated(GoogleMapController controller) {
     mapController = controller;
+    _initializeMarkers();
     _startTracking();
+  }
+
+  void _initializeMarkers() {
+    setState(() {
+      _markers = {
+        // Marker untuk kantor
+        Marker(
+          markerId: const MarkerId("office"),
+          position: _officeLatLng,
+          infoWindow: const InfoWindow(
+            title: "Kantor",
+            snippet: "Jl. Anggrek No.24, Ngepos, Klaten Tengah",
+          ),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+        ),
+        // Marker untuk lokasi terpilih
+        Marker(
+          markerId: const MarkerId("selected"),
+          position: _currentLatLng,
+          infoWindow: const InfoWindow(
+            title: "Lokasi Terpilih",
+          ),
+        ),
+      };
+    });
   }
 
   Future<void> _startTracking() async {
@@ -70,6 +101,17 @@ class _LocationPageState extends State<LocationPage> {
   void _updateLocation(Position position) {
     setState(() {
       _currentLatLng = LatLng(position.latitude, position.longitude);
+      // Update marker lokasi terpilih
+      _markers.removeWhere((marker) => marker.markerId.value == "selected");
+      _markers.add(
+        Marker(
+          markerId: const MarkerId("selected"),
+          position: _currentLatLng,
+          infoWindow: const InfoWindow(
+            title: "Lokasi Saat Ini",
+          ),
+        ),
+      );
     });
     mapController.animateCamera(CameraUpdate.newLatLng(_currentLatLng));
   }
@@ -113,6 +155,18 @@ class _LocationPageState extends State<LocationPage> {
         _currentLatLng = latLng;
         _predictions.clear();
         _searchController.text = data['result']['name'];
+        
+        // Update marker lokasi terpilih
+        _markers.removeWhere((marker) => marker.markerId.value == "selected");
+        _markers.add(
+          Marker(
+            markerId: const MarkerId("selected"),
+            position: latLng,
+            infoWindow: InfoWindow(
+              title: data['result']['name'],
+            ),
+          ),
+        );
       });
 
       mapController.animateCamera(CameraUpdate.newLatLngZoom(latLng, 14));
@@ -128,6 +182,18 @@ class _LocationPageState extends State<LocationPage> {
         _currentLatLng = current;
         _searchController.clear();
         _predictions.clear();
+        
+        // Update marker lokasi terpilih
+        _markers.removeWhere((marker) => marker.markerId.value == "selected");
+        _markers.add(
+          Marker(
+            markerId: const MarkerId("selected"),
+            position: current,
+            infoWindow: const InfoWindow(
+              title: "Lokasi Saat Ini",
+            ),
+          ),
+        );
       });
       mapController.animateCamera(CameraUpdate.newLatLngZoom(current, 16));
     } catch (e) {
@@ -135,6 +201,14 @@ class _LocationPageState extends State<LocationPage> {
         SnackBar(content: Text('Gagal mendapatkan lokasi saat ini: $e')),
       );
     }
+  }
+
+  Future<void> _goToOffice() async {
+    setState(() {
+      _searchController.clear();
+      _predictions.clear();
+    });
+    mapController.animateCamera(CameraUpdate.newLatLngZoom(_officeLatLng, 16));
   }
 
   @override
@@ -198,23 +272,32 @@ class _LocationPageState extends State<LocationPage> {
               ),
               myLocationEnabled: true,
               myLocationButtonEnabled: false,
-              markers: {
-                Marker(
-                  markerId: const MarkerId("selected"),
-                  position: _currentLatLng,
-                ),
-              },
+              markers: _markers,
             ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-          onPressed: _goToCurrentLocation,
-          backgroundColor: const Color(0xFF0B0D3A),
-          child: const Icon(Icons.my_location),
-          tooltip: 'Kembali ke lokasi saya',
-        ),
-        floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-      );
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            onPressed: _goToOffice,
+            backgroundColor: const Color(0xFF0B0D3A),
+            heroTag: "office_btn",
+            child: const Icon(Icons.business, color: Colors.white),
+            tooltip: 'Pergi ke Kantor',
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton(
+            onPressed: _goToCurrentLocation,
+            backgroundColor: const Color(0xFF0B0D3A),
+            heroTag: "location_btn",
+            child: const Icon(Icons.my_location, color: Colors.white),
+            tooltip: 'Kembali ke lokasi saya',
+          ),
+        ],
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
+    );
   }
 }

@@ -162,49 +162,6 @@ class _ExchangePageState extends State<ExchangePage> {
     }
   }
 
-  // Untuk API yang memerlukan key (opsional)
-  /*Future<void> _fetchExchangeRatesWithKey(String apiKey) async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      // Opsi 3: Fixer.io (perlu API key gratis dari fixer.io)
-      final response = await http.get(
-        Uri.parse('http://data.fixer.io/api/latest?access_key=$apiKey&base=USD&symbols=${_supportedCurrencies.join(',')}'),
-        headers: {'Accept': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          final rates = data['rates'] as Map<String, dynamic>;
-          
-          setState(() {
-            _exchangeRates = {};
-            for (String currency in _supportedCurrencies) {
-              if (rates.containsKey(currency)) {
-                _exchangeRates[currency] = rates[currency].toDouble();
-              }
-            }
-            _exchangeRates['USD'] = 1.0;
-            _lastUpdated = DateTime.now();
-            _isLoading = false;
-          });
-
-          _showSuccessMessage('Kurs berhasil diperbarui dengan API key');
-        } else {
-          throw Exception('API Error: ${data['error']['info']}');
-        }
-      } else {
-        throw Exception('HTTP Error: ${response.statusCode}');
-      }
-    } catch (e) {
-      // Fallback ke API gratis
-      await _fetchExchangeRates();
-    }
-  }*/
-
   void _showSuccessMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

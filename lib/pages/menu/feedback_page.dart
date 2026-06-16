@@ -32,17 +32,16 @@ class FeedbackPage extends StatelessWidget {
                   'Materi yang diajarkan lengkap dan relevan dengan perkembangan teknologi saat ini, '
                   'terutama dalam pembuatan aplikasi mobile. Dosen juga sangat komunikatif dan membantu '
                   'dalam menjelaskan konsep-konsep yang sulit sehingga saya lebih mudah memahami. '
-                  'Praktikum yang dilakukan pun sangat membantu untuk memperkuat teori yang dipelajari.',
+                  'Tugas yang diberikan juga tidak terlalu sulit pagi mahasiswa masa kini.',
             ),
             const SizedBox(height: 20),
             _buildSectionCard(
               icon: LucideIcons.messageCircle,
               title: 'Saran',
               content:
-                  'Agar kuliah ini semakin optimal, sebaiknya materi praktikum diberikan lebih banyak contoh aplikasi nyata. '
-                  'Selain itu, bisa ditambahkan sesi workshop atau proyek kolaboratif agar mahasiswa dapat belajar bekerja dalam tim '
-                  'dan mengaplikasikan teknologi mobile secara lebih nyata. Penambahan materi tentang teknologi terbaru seperti Flutter '
-                  'atau React Native juga akan sangat membantu sebagai persiapan dunia kerja.',
+                  'Agar kuliah ini semakin optimal, sebaiknya materi diberikan lebih banyak yang menunjang karir industri IT.'
+                  'Selain itu, bisa ditambahkan sesi Proyek Eksternal yang bersetifikasi'
+                  'dan mengaplikasikan teknologi mobile secara lebih nyata.',
             ),
           ],
         ),
